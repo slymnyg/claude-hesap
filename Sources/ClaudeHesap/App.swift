@@ -13,16 +13,17 @@ struct ClaudeHesapEntry {
 
 struct ClaudeHesapApp: App {
     @StateObject private var store = AccountStore()
+    @StateObject private var updater = Updater()
 
     var body: some Scene {
         Window("Claude Hesap", id: "main") {
-            MainView().environmentObject(store)
+            MainView().environmentObject(store).environmentObject(updater)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         MenuBarExtra {
-            MenuBarPanel().environmentObject(store)
+            MenuBarPanel().environmentObject(store).environmentObject(updater)
         } label: {
             MenuBarIcon()
         }

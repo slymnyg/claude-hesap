@@ -54,6 +54,7 @@ struct AppLogo: View {
 
 struct MainView: View {
     @EnvironmentObject var store: AccountStore
+    @EnvironmentObject var updater: Updater
     @State private var showAdd = false
 
     private var others: [Account] { store.visibleAccounts.filter { !$0.isDefault } }
@@ -62,6 +63,7 @@ struct MainView: View {
         VStack(spacing: 0) {
             header
             VStack(alignment: .leading, spacing: 10) {
+                UpdateBanner()
                 if let n = store.notice { Banner(text: n, kind: .info) { store.notice = nil } }
                 if let e = store.lastError { Banner(text: e, kind: .error) { store.lastError = nil } }
 
@@ -83,6 +85,7 @@ struct MainView: View {
             }
             .padding(.horizontal, 22)
             footer
+            VersionBar()
         }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
@@ -143,7 +146,7 @@ struct MainView: View {
         }
         .padding(.horizontal, 22)
         .padding(.top, 16)
-        .padding(.bottom, 18)
+        .padding(.bottom, 12)
     }
 }
 
@@ -384,8 +387,9 @@ struct AccountRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(account.label).font(.system(size: 13.5, weight: .semibold))
-                        if let plan = account.plan { PlanTag(text: plan, color: Theme.tint(for: account)) }
-                        if store.desktopAccountId == account.id { DesktopBadge() }
+                            .lineLimit(1).truncationMode(.tail)
+                        if let plan = account.plan { PlanTag(text: plan, color: Theme.tint(for: account)).fixedSize() }
+                        if store.desktopAccountId == account.id { DesktopBadge(compact: true).fixedSize() }
                     }
                     EmailText(account: account)
                 }
@@ -574,6 +578,7 @@ struct AddAccountSheet: View {
 
 struct MenuBarPanel: View {
     @EnvironmentObject var store: AccountStore
+    @EnvironmentObject var updater: Updater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -599,6 +604,10 @@ struct MenuBarPanel: View {
 
             Divider().padding(.top, 8)
             VStack(spacing: 0) {
+                if updater.updateAvailable, let v = updater.latest {
+                    PanelAction(title: updater.state == .installing ? "Güncelleniyor…" : "Güncelle (\(v))",
+                                accent: true) { Task { await updater.install() } }
+                }
                 PanelAction(title: "Hesapları yönet…") {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "main")
@@ -672,6 +681,7 @@ struct PanelRow: View {
 
 struct PanelAction: View {
     let title: String
+    var accent = false
     let action: () -> Void
     @State private var hover = false
 
@@ -686,7 +696,7 @@ struct PanelAction: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary.opacity(0.85))
+        .foregroundStyle(accent ? AnyShapeStyle(Theme.clayText) : AnyShapeStyle(.primary.opacity(0.85)))
         .onHover { hover = $0 }
     }
 }
@@ -734,5 +744,66 @@ struct DesktopStatus: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.035)))
+    }
+}
+
+// MARK: Güncelleme
+
+struct UpdateBanner: View {
+    @EnvironmentObject var updater: Updater
+
+    var body: some View {
+        if updater.updateAvailable, let v = updater.latest {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.clay).font(.system(size: 13))
+                Text("Yeni sürüm hazır: \(v)").font(.system(size: 12, weight: .medium))
+                Spacer()
+                if updater.state == .installing {
+                    ProgressView().controlSize(.small)
+                    Text("Kuruluyor…").font(.system(size: 11.5)).foregroundStyle(.secondary)
+                } else {
+                    Button("Güncelle") { Task { await updater.install() } }
+                        .buttonStyle(.borderedProminent).tint(Theme.clay).controlSize(.small)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.clay.opacity(0.1)))
+            .padding(.bottom, 4)
+        }
+        if case .failed(let msg) = updater.state {
+            Banner(text: msg, kind: .error) { updater.state = .idle }
+        }
+    }
+}
+
+struct VersionBar: View {
+    @EnvironmentObject var updater: Updater
+
+    private var status: String {
+        switch updater.state {
+        case .checking: "Denetleniyor…"
+        case .upToDate: "Güncel"
+        case .installing: "Kuruluyor…"
+        default: ""
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Sürüm \(updater.current ?? "geliştirme")")
+            if !status.isEmpty { Text(status) }
+            Button("Güncellemeleri denetle") { Task { await updater.check(manual: true) } }
+                .buttonStyle(.plain).foregroundStyle(Theme.clayText)
+                .disabled(updater.current == nil || updater.state == .checking || updater.state == .installing)
+            Spacer()
+            Toggle(isOn: $updater.autoUpdate) { Text("Otomatik güncelle") }
+                .toggleStyle(.switch).controlSize(.mini).tint(Theme.clay)
+                .help("Yeni sürüm çıkınca uygulama arka plandayken kendiliğinden kurulur")
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.tertiary)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 10)
+        .overlay(alignment: .top) { Divider().opacity(0.5) }
     }
 }

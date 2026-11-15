@@ -109,7 +109,9 @@ final class AccountStore: ObservableObject {
         let email = oauth["emailAddress"] as? String ?? "?"
         var org = oauth["organizationName"] as? String ?? ""
         if org.hasSuffix("'s Organization") { org = "Kişisel" }
-        let label = registry.accounts[uuid]?.label ?? prettyLabel(fallbackLabel)
+        // Dizin adı kurum adının küçük harfli hâliyse (".claude-hayratyardim") kurumun yazımını kullan.
+        let fromOrg = !org.isEmpty && org != "Kişisel" && slug(org) == slug(fallbackLabel) ? org : nil
+        let label = registry.accounts[uuid]?.label ?? fromOrg ?? prettyLabel(fallbackLabel)
         return Account(id: uuid, label: label, email: email, orgName: org)
     }
 
