@@ -7,15 +7,16 @@ cask "claude-hesap" do
   desc "Claude Code ve Claude masaüstü için hesap değiştirici"
   homepage "https://github.com/slymnyg/claude-hesap"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Claude Hesap.app"
   binary "#{appdir}/Claude Hesap.app/Contents/MacOS/ClaudeHesap", target: "claude-hesap"
 
   # Uygulama Apple Developer ID ile imzalı değil; Gatekeeper engellemesin diye karantina kaldırılır.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Claude Hesap.app"]
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:         ["-dr", "com.apple.quarantine", "{{appdir}}/Claude Hesap.app"],
+        must_succeed: false
   end
 
   zap trash: "~/.claude-hesap"
